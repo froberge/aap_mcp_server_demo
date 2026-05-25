@@ -1,0 +1,46 @@
+{
+  "mcpServers": {
+    "aap-mcp-job-management": {
+      "type": "streamable-http",
+      "url": "https://REPLACE_WITH_MCP_ROUTE_HOST/job_management/mcp",
+      "headers": {
+        "Authorization": "Bearer <paste-your-aap-oauth-token>"
+      }
+    },
+    "aap-mcp-inventory": {
+      "type": "streamable-http",
+      "url": "https://REPLACE_WITH_MCP_ROUTE_HOST/inventory_management/mcp",
+      "headers": {
+        "Authorization": "Bearer <paste-your-aap-oauth-token>"
+      }
+    },
+    "aap-mcp-monitoring": {
+      "type": "streamable-http",
+      "url": "https://REPLACE_WITH_MCP_ROUTE_HOST/system_monitoring/mcp",
+      "headers": {
+        "Authorization": "Bearer <paste-your-aap-oauth-token>"
+      }
+    },
+    "aap-mcp-users": {
+      "type": "streamable-http",
+      "url": "https://REPLACE_WITH_MCP_ROUTE_HOST/user_management/mcp",
+      "headers": {
+        "Authorization": "Bearer <paste-your-aap-oauth-token>"
+      }
+    },
+    "aap-mcp-security": {
+      "type": "streamable-http",
+      "url": "https://REPLACE_WITH_MCP_ROUTE_HOST/security_compliance/mcp",
+      "headers": {
+        "Authorization": "Bearer <paste-your-aap-oauth-token>"
+      }
+    },
+    "aap-mcp-platform": {
+      "type": "streamable-http",
+      "url": "https://REPLACE_WITH_MCP_ROUTE_HOST/platform_configuration/mcp",
+      "headers": {
+        "Authorization": "Bearer <paste-your-aap-oauth-token>"
+      }
+    }
+  }
+}

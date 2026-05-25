@@ -1,0 +1,29 @@
+---
+- name: List AnsibleAutomationPlatform custom resources
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_aap_crs
+
+- name: Fail when no AnsibleAutomationPlatform CR exists
+  ansible.builtin.assert:
+    that:
+      - aap_mcp_aap_crs.resources | length > 0
+    fail_msg: >-
+      No AnsibleAutomationPlatform CR in namespace '{{ aap_namespace }}'.
+      Set aap_cr_name after deploying AAP, or create AAP first.
+
+- name: Auto-detect AnsibleAutomationPlatform CR name
+  ansible.builtin.set_fact:
+    aap_mcp_resolved_cr_name: "{{ aap_mcp_aap_crs.resources[0].metadata.name }}"
+  when: aap_cr_name | default('') | length == 0
+
+- name: Use provided AnsibleAutomationPlatform CR name
+  ansible.builtin.set_fact:
+    aap_mcp_resolved_cr_name: "{{ aap_cr_name }}"
+  when: aap_cr_name | default('') | length > 0
+
+- name: Show target custom resource
+  ansible.builtin.debug:
+    msg: "Using AnsibleAutomationPlatform/{{ aap_mcp_resolved_cr_name }} in namespace {{ aap_namespace }}"

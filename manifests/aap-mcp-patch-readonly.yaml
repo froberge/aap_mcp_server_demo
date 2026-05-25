@@ -1,0 +1,11 @@
+# Read-only MCP — restricts the AI agent to viewing data only (no job launches or changes).
+#
+apiVersion: aap.ansible.com/v1alpha1
+kind: AnsibleAutomationPlatform
+metadata:
+  name: example
+  namespace: aap
+spec:
+  mcp:
+    disabled: false
+    allow_write_operations: false

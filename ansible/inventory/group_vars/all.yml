@@ -1,0 +1,35 @@
+---
+# Namespace where AnsibleAutomationPlatform is deployed (ARO default: aap)
+aap_namespace: aap
+
+# Leave empty to auto-detect the first AnsibleAutomationPlatform CR in the namespace
+aap_cr_name: ""
+
+# Server-level MCP permissions (Technology Preview)
+# true = AI agent may trigger jobs/changes when the user's API token also has write scope
+mcp_allow_write: true
+mcp_ignore_cert_errors: false
+
+# Seconds to wait for the MCP deployment to become Available
+wait_timeout: 600
+
+# Deployment name created by the operator (auto-detected if not found)
+mcp_deployment_name: aap-mcp
+
+# Output path for generated Cursor MCP config (generate-cursor-config playbook)
+cursor_mcp_config_path: "{{ playbook_dir }}/../examples/cursor-mcp.generated.json"
+
+# MCP toolsets exposed by AAP 2.6 (Technology Preview)
+aap_mcp_toolsets:
+  - key: aap-mcp-job-management
+    path: job_management
+  - key: aap-mcp-inventory
+    path: inventory_management
+  - key: aap-mcp-monitoring
+    path: system_monitoring
+  - key: aap-mcp-users
+    path: user_management
+  - key: aap-mcp-security
+    path: security_compliance
+  - key: aap-mcp-platform
+    path: platform_configuration

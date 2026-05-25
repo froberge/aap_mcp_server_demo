@@ -1,0 +1,78 @@
+---
+- name: Validate connection to remote OpenShift cluster
+  ansible.builtin.import_tasks: validate_connection.yml
+
+- name: Gather OpenShift routes
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_routes
+
+- name: Resolve MCP route host for toolset URLs
+  ansible.builtin.set_fact:
+    aap_mcp_route_host: >-
+      {{
+        (
+          aap_mcp_routes.resources
+          | selectattr('metadata.name', 'search', 'mcp')
+          | map(attribute='spec.host')
+          | list
+          | first
+        )
+        | default('', true)
+      }}
+    aap_mcp_gateway_host: >-
+      {{
+        (
+          aap_mcp_routes.resources
+          | selectattr('metadata.name', 'search', 'gateway')
+          | map(attribute='spec.host')
+          | list
+          | first
+        )
+        | default('', true)
+      }}
+
+- name: Pick MCP hostname for Cursor (prefer dedicated MCP route)
+  ansible.builtin.set_fact:
+    aap_mcp_detected_host: >-
+      {{
+        aap_mcp_route_host
+        if (aap_mcp_route_host | default('') | length > 0)
+        else aap_mcp_gateway_host
+      }}
+
+- name: Apply hostname (use -e aap_mcp_public_host to override detection)
+  ansible.builtin.set_fact:
+    aap_mcp_public_host: "{{ aap_mcp_public_host | default(aap_mcp_detected_host) }}"
+
+- name: Fail when no MCP route host is found
+  ansible.builtin.assert:
+    that:
+      - aap_mcp_public_host | default('') | length > 0
+    fail_msg: >-
+      Could not detect an OpenShift Route for the MCP server in namespace '{{ aap_namespace }}'.
+      In the OpenShift console go to Networking → Routes and copy the Location for the route
+      whose name contains 'mcp' (for example aap-mcp or {{ aap_cr_name | default('aap') }}-mcp).
+      Then re-run with: -e aap_mcp_public_host=<that-hostname>
+
+- name: Ensure output directory exists
+  ansible.builtin.file:
+    path: "{{ cursor_mcp_config_path | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Generate Cursor MCP configuration
+  ansible.builtin.template:
+    src: cursor-mcp.json.j2
+    dest: "{{ cursor_mcp_config_path }}"
+    mode: "0644"
+
+- name: Generated config summary
+  ansible.builtin.debug:
+    msg:
+      - "Wrote {{ cursor_mcp_config_path }}"
+      - "MCP route host: {{ aap_mcp_public_host }}"
+      - "Use this hostname in Cursor URLs — not the Platform Gateway route (POST /mcp returns 405 on gateway nginx)"
+      - "Next: export MY_AAP_SERVICE_TOKEN and run ../scripts/set-cursor-mcp-token.sh from repo root"

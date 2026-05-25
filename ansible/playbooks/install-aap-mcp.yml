@@ -1,0 +1,14 @@
+---
+- name: Enable AAP MCP server on OpenShift
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/kubernetes.core.k8s:
+      host: "{{ openshift_api_server }}"
+      api_key: "{{ openshift_token }}"
+      validate_certs: "{{ openshift_validate_certs | bool }}"
+  tasks:
+    - name: Run AAP MCP install role
+      ansible.builtin.import_role:
+        name: aap_mcp
+        tasks_from: install

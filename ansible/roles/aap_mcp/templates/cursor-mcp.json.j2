@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+{% for toolset in aap_mcp_toolsets %}
+    "{{ toolset.key }}": {
+      "type": "streamable-http",
+      "url": "https://{{ aap_mcp_public_host }}/{{ toolset.path }}/mcp",
+      "headers": {
+        "Authorization": "Bearer {{ aap_mcp_bearer_token | default('<paste-your-aap-oauth-token>', true) }}"
+      }
+    }{% if not loop.last %},{% endif %}
+
+{% endfor %}
+  }
+}

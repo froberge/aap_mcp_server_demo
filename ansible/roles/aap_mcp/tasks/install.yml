@@ -1,0 +1,125 @@
+---
+- name: Validate connection to remote OpenShift cluster
+  ansible.builtin.import_tasks: validate_connection.yml
+
+- name: Discover AnsibleAutomationPlatform CR
+  ansible.builtin.import_tasks: discover.yml
+
+- name: Build MCP component spec
+  ansible.builtin.set_fact:
+    aap_mcp_spec:
+      disabled: false
+      allow_write_operations: "{{ mcp_allow_write | bool }}"
+
+- name: Add IGNORE_CERTIFICATE_ERRORS when requested
+  ansible.builtin.set_fact:
+    aap_mcp_spec: >-
+      {{
+        aap_mcp_spec | combine({
+          'extra_settings': [{
+            'setting': 'IGNORE_CERTIFICATE_ERRORS',
+            'value': true
+          }]
+        }, recursive=True)
+      }}
+  when: mcp_ignore_cert_errors | bool
+
+- name: Build MCP spec patch
+  ansible.builtin.set_fact:
+    aap_mcp_patch:
+      spec:
+        mcp: "{{ aap_mcp_spec }}"
+
+- name: Enable MCP on AnsibleAutomationPlatform CR
+  kubernetes.core.k8s:
+    state: patched
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    name: "{{ aap_mcp_resolved_cr_name }}"
+    namespace: "{{ aap_namespace }}"
+    merge_type: merge
+    definition: "{{ aap_mcp_patch }}"
+
+- name: List deployments in AAP namespace
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_deployments
+
+- name: Auto-detect MCP deployment name
+  ansible.builtin.set_fact:
+    aap_mcp_resolved_deploy_name: >-
+      {{
+        (
+          aap_mcp_deployments.resources
+          | selectattr('metadata.name', 'search', 'mcp')
+          | map(attribute='metadata.name')
+          | list
+          | first
+        )
+        | default(mcp_deployment_name, true)
+      }}
+
+- name: Wait for MCP deployment to become Available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ aap_mcp_resolved_deploy_name }}"
+    namespace: "{{ aap_namespace }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ wait_timeout }}"
+  register: aap_mcp_deployment
+
+- name: Gather OpenShift routes
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_routes
+
+- name: Resolve MCP and gateway route hosts
+  ansible.builtin.set_fact:
+    aap_mcp_route_host: >-
+      {{
+        (
+          aap_mcp_routes.resources
+          | selectattr('metadata.name', 'search', 'mcp')
+          | map(attribute='spec.host')
+          | list
+          | first
+        )
+        | default('', true)
+      }}
+    aap_mcp_gateway_host: >-
+      {{
+        (
+          aap_mcp_routes.resources
+          | selectattr('metadata.name', 'search', 'gateway')
+          | map(attribute='spec.host')
+          | list
+          | first
+        )
+        | default(
+            (
+              aap_mcp_routes.resources
+              | rejectattr('metadata.name', 'search', 'mcp')
+              | map(attribute='spec.host')
+              | list
+              | first
+            ),
+            true
+          )
+      }}
+
+- name: Installation summary
+  ansible.builtin.debug:
+    msg:
+      - "MCP deployment '{{ aap_mcp_resolved_deploy_name }}' is Available."
+      - "MCP route host (use for Cursor): {{ aap_mcp_route_host | default('not detected') }}"
+      - "Platform Gateway host (UI login only): {{ aap_mcp_gateway_host | default('not detected') }}"
+      - "Example toolset URL: https://{{ aap_mcp_route_host | default('<mcp-route-host>') }}/job_management/mcp"
+      - "Next: ansible-playbook playbooks/generate-cursor-config.yml"

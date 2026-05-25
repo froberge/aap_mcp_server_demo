@@ -1,0 +1,26 @@
+---
+aap_namespace: aap
+aap_cr_name: ""
+mcp_allow_write: true
+mcp_ignore_cert_errors: false
+wait_timeout: 600
+mcp_deployment_name: aap-mcp
+cursor_mcp_config_path: "{{ role_path }}/../../../examples/cursor-mcp.generated.json"
+
+# Optional: embed token when running generate-cursor-config.yml (-e aap_mcp_bearer_token=...)
+# Leave empty to write placeholder <paste-your-aap-oauth-token> instead
+aap_mcp_bearer_token: ""
+
+aap_mcp_toolsets:
+  - key: aap-mcp-job-management
+    path: job_management
+  - key: aap-mcp-inventory
+    path: inventory_management
+  - key: aap-mcp-monitoring
+    path: system_monitoring
+  - key: aap-mcp-users
+    path: user_management
+  - key: aap-mcp-security
+    path: security_compliance
+  - key: aap-mcp-platform
+    path: platform_configuration

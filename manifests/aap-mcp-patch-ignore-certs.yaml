@@ -1,0 +1,15 @@
+# Use when Platform Gateway / MCP routes use self-signed certificates (common in lab/ARO).
+# Technology Preview — not for production without proper TLS.
+#
+apiVersion: aap.ansible.com/v1alpha1
+kind: AnsibleAutomationPlatform
+metadata:
+  name: example
+  namespace: aap
+spec:
+  mcp:
+    disabled: false
+    allow_write_operations: true
+    extra_settings:
+      - setting: IGNORE_CERTIFICATE_ERRORS
+        value: true

@@ -1,0 +1,94 @@
+---
+- name: Validate connection to remote OpenShift cluster
+  ansible.builtin.import_tasks: validate_connection.yml
+
+- name: Discover AnsibleAutomationPlatform CR
+  ansible.builtin.import_tasks: discover.yml
+
+- name: Read AnsibleAutomationPlatform CR
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    name: "{{ aap_mcp_resolved_cr_name }}"
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_cr
+
+- name: Report MCP CR settings
+  ansible.builtin.debug:
+    msg:
+      - "spec.mcp.disabled: {{ aap_mcp_cr.resources[0].spec.mcp.disabled | default('unset') }}"
+      - "spec.mcp.allow_write_operations: {{ aap_mcp_cr.resources[0].spec.mcp.allow_write_operations | default('unset') }}"
+
+- name: Assert MCP is enabled in CR
+  ansible.builtin.assert:
+    that:
+      - aap_mcp_cr.resources[0].spec.mcp.disabled | default(true) | bool == false
+    fail_msg: "MCP is still disabled on AnsibleAutomationPlatform/{{ aap_mcp_resolved_cr_name }}"
+    success_msg: "MCP is enabled on AnsibleAutomationPlatform/{{ aap_mcp_resolved_cr_name }}"
+
+- name: List MCP-related deployments
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ aap_namespace }}"
+    label_selectors: []
+  register: aap_mcp_all_deployments
+
+- name: Show MCP deployments
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        aap_mcp_all_deployments.resources
+        | map(attribute='metadata.name')
+        | select('search', 'mcp')
+        | list
+      }}
+
+- name: List MCP pods
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_pods
+
+- name: Show MCP pod status
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        aap_mcp_pods.resources
+        | selectattr('metadata.name', 'search', 'mcp')
+        | map(attribute='metadata.name')
+        | list
+      }}
+
+- name: List routes
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_routes
+
+- name: Show MCP routes
+  ansible.builtin.debug:
+    var: item
+  loop: "{{ aap_mcp_routes.resources | selectattr('metadata.name', 'search', 'mcp') | list }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: List AnsibleMCPServer CRs when CRD exists
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleMCPServer
+    namespace: "{{ aap_namespace }}"
+  register: aap_mcp_server_crs
+  failed_when: false
+
+- name: Show AnsibleMCPServer instances
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        aap_mcp_server_crs.resources
+        | default([])
+        | map(attribute='metadata.name')
+        | list
+      }}

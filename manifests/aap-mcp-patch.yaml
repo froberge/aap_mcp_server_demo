@@ -1,0 +1,15 @@
+# Merge patch for AnsibleAutomationPlatform — enable MCP server (read-write).
+# Apply with:
+#   oc patch ansibleautomationplatform <CR_NAME> -n <NAMESPACE> --type=merge --patch-file manifests/aap-mcp-patch.yaml
+#
+# For read-only access, set spec.mcp.allow_write_operations to false (see aap-mcp-patch-readonly.yaml).
+#
+apiVersion: aap.ansible.com/v1alpha1
+kind: AnsibleAutomationPlatform
+metadata:
+  name: example
+  namespace: aap
+spec:
+  mcp:
+    disabled: false
+    allow_write_operations: true

@@ -1,0 +1,21 @@
+---
+# Remote OpenShift connection (API URL + bearer token)
+#
+# Set these in this file or pass with -e at runtime:
+#
+#   openshift_api_server: "https://api.<cluster>.aroapp.io:6443"
+#   openshift_token: "<openshift-token>"
+#
+# Do not commit real tokens. Prefer -e or an untracked vars file.
+
+# Create a file withtou the .example locally with your values
+
+
+openshift_api_server: ""
+openshift_token: ""
+openshift_validate_certs: true
+
+aap_mcp_k8s_auth:
+  host: "{{ openshift_api_server }}"
+  api_key: "{{ openshift_token }}"
+  validate_certs: "{{ openshift_validate_certs | bool }}"

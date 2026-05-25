@@ -1,0 +1,7 @@
+# Don't commit the working file.
+ansible/inventory/group_vars/all/openshift.yml
+
+# Cursor MCP config may contain your AAP OAuth token after editing
+.cursor/mcp.json
+examples/cursor-mcp.generated.json
+ansible/examples/cursor-mcp.generated.json
