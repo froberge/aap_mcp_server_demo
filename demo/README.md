@@ -4,60 +4,44 @@ Playbooks and survey spec for the **Linux - Deploy Application** job template in
 
 ## Survey variables
 
-The playbook [`ansible/playbook/deploy_linux_app.yml`](ansible/playbook/deploy_linux_app.yml) expects these **extra vars** from the job template survey:
+The playbook `[ansible/playbook/deploy_linux_app.yml](ansible/playbook/deploy_linux_app.yml)` expects these **extra vars** from the job template survey:
 
-| Variable | Description |
-|----------|-------------|
+
+| Variable   | Description                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------- |
 | `app_name` | Single-select list (no default) — pick an app; package and systemd service use the same name |
 
-Import the survey in AAP: **Job Templates → Linux - Deploy Application → Survey → Import** and select [`ansible/survey/deploy_linux_app.json`](ansible/survey/deploy_linux_app.json).
+
+Import the survey in AAP: **Job Templates → Linux - Deploy Application → Survey → Import** and select `[ansible/survey/deploy_linux_app.json](ansible/survey/deploy_linux_app.json)`.
 
 Also enable **Privilege Escalation** on the job template (the playbook uses `become: true`).
 
 ## Playbooks
 
-| Playbook | Purpose |
-|----------|---------|
-| `deploy_linux_app.yml` | Install package and start service (requires working `dnf` repos) |
+
+| Playbook                  | Purpose                                                                   |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `deploy_linux_app.yml`    | Install package and start service (requires working `dnf` repos)          |
 | `configure_linux_app.yml` | **No package install** — file, web page, service restart, or host summary |
-| `diagnose_linux_repos.yml` | Print subscription, `dnf repolist`, and `httpd` availability |
-| `fix_linux_repos.yml` | Run `dnf makecache` and verify `httpd` is visible to dnf |
+
 
 ### Configure without installing packages
 
-Use when the bastion is **not registered** and `dnf install` fails. Import survey [`ansible/survey/configure_linux_app.json`](ansible/survey/configure_linux_app.json) on a **new** job template pointing at `demo/ansible/playbook/configure_linux_app.yml`.
+Use when the bastion is **not registered** and `dnf install` fails. Import survey `[ansible/survey/configure_linux_app.json](ansible/survey/configure_linux_app.json)` on a **new** job template pointing at `demo/ansible/playbook/configure_linux_app.yml`.
 
-| Survey variable | Values |
-|-----------------|--------|
-| `demo_action` | `write_demo_config`, `write_web_page`, `restart_service`, `host_summary` |
-| `app_name` | Optional for `write_demo_config` / `host_summary`; required for web/restart actions |
 
-| Action | What it does |
-|--------|----------------|
-| `write_demo_config` | Creates `/etc/ansible-demo/deployed.json` with host and timestamp |
-| `write_web_page` | Writes `index.html` under `/var/www/html`, `/usr/share/nginx/html`, or `/tmp/ansible-demo-www` |
-| `restart_service` | Restarts `app_name` **only if** the systemd unit already exists |
-| `host_summary` | Prints OS, kernel, and network info (no changes) |
+| Survey variable | Values                                                                              |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `demo_action`   | `write_demo_config`, `write_web_page`, `restart_service`, `host_summary`            |
+| `app_name`      | Optional for `write_demo_config` / `host_summary`; required for web/restart actions |
 
-## Troubleshooting: `No package httpd available`
 
-On RHEL 8/9, `httpd` is in **AppStream**. If the job reports the package is missing, check whether the host is **registered**:
 
-```text
-This system is not registered with an entitlement server.
-Unable to read consumer identity
-```
+| Action              | What it does                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------- |
+| `write_demo_config` | Creates `/etc/ansible-demo/deployed.json` with host and timestamp                              |
+| `write_web_page`    | Writes `index.html` under `/var/www/html`, `/usr/share/nginx/html`, or `/tmp/ansible-demo-www` |
+| `restart_service`   | Restarts `app_name` **only if** the systemd unit already exists                                |
+| `host_summary`      | Prints OS, kernel, and network info (no changes)                                               |
 
-That means **dnf has no entitled repos** — fixing the playbook or survey will not help until the bastion is registered.
 
-1. On the bastion (SSH), register per your **workshop lab guide**, for example:
-   - `sudo subscription-manager register --auto-attach` (with org credentials), or
-   - `sudo rhc connect` (RHEL 9)
-2. Confirm repos: `sudo subscription-manager status` and `sudo dnf repolist` (expect BaseOS and AppStream).
-3. Confirm the package: `sudo dnf install -y httpd` (must succeed before re-running deploy).
-4. Sync the AAP project and re-launch **Linux - Deploy Application**.
-
-Optional playbooks:
-
-- `diagnose_linux_repos.yml` — print subscription, repolist, and `httpd` availability
-- `fix_linux_repos.yml` — only helps if the host is already registered (runs `dnf makecache`); fails fast if not registered
