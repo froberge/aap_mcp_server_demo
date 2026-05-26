@@ -1,0 +1,31 @@
+{
+  "name": "",
+  "description": "Survey for Configure Linux Application (no RPM install)",
+  "spec": [
+    {
+      "type": "multiplechoice",
+      "variable": "demo_action",
+      "question_name": "Action",
+      "question_description": "Configuration task to run (does not use dnf)",
+      "required": true,
+      "choices": [
+        "write_demo_config",
+        "write_web_page",
+        "restart_service",
+        "host_summary"
+      ]
+    },
+    {
+      "type": "multiplechoice",
+      "variable": "app_name",
+      "question_name": "Application",
+      "question_description": "Used for write_web_page and restart_service (ignored for other actions)",
+      "required": false,
+      "choices": [
+        "httpd",
+        "nginx",
+        "sshd"
+      ]
+    }
+  ]
+}

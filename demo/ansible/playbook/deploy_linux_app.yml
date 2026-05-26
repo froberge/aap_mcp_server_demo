@@ -24,6 +24,20 @@
           use apache2 for app_name.
       when: app_name == 'httpd'
 
+    - name: Check subscription-manager status
+      ansible.builtin.command: subscription-manager status
+      register: sub_status
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'RedHat'
+
+    - name: List enabled DNF repositories
+      ansible.builtin.command: dnf repolist
+      register: dnf_repos
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'RedHat'
+
     - name: Verify package is available in enabled repos
       ansible.builtin.command: "dnf list --available {{ app_name }}"
       register: package_avail
@@ -31,13 +45,59 @@
       failed_when: false
       when: ansible_os_family == 'RedHat'
 
+    # region agent log
+    - name: agent debug emit repo diagnosis
+      ansible.builtin.debug:
+        msg: >-
+          AGENT_DEBUG {{ {
+            'sessionId': '2da994',
+            'runId': 'deploy',
+            'hypothesisId': 'H1',
+            'location': 'deploy_linux_app.yml:repo_check',
+            'data': {
+              'host': inventory_hostname,
+              'app_name': app_name,
+              'package_avail_rc': package_avail.rc,
+              'package_avail_stderr': package_avail.stderr | default(''),
+              'package_avail_stdout': package_avail.stdout | default(''),
+              'sub_status_rc': sub_status.rc | default(-1),
+              'sub_status_stdout': sub_status.stdout | default(''),
+              'dnf_repos_rc': dnf_repos.rc | default(-1)
+            }
+          } | to_json }}
+      when:
+        - ansible_os_family == 'RedHat'
+        - package_avail.rc != 0
+    # endregion
+
+    - name: Fail when host is not entitled to RHEL repos
+      ansible.builtin.fail:
+        msg: >-
+          {{ inventory_hostname }} is not registered with Red Hat Subscription
+          Management (or RHUI is not active). dnf cannot install '{{ app_name }}'
+          until the host is entitled. Register per your workshop guide, for
+          example: subscription-manager register --auto-attach, or rhc connect.
+          subscription-manager status (rc={{ sub_status.rc }}):
+          {{ sub_status.stdout | default('n/a') }}
+          dnf said: {{ package_avail.stderr | default(package_avail.stdout) }}
+      when:
+        - ansible_os_family == 'RedHat'
+        - package_avail.rc != 0
+        - >-
+          'not registered' in (package_avail.stdout | default('') | lower)
+          or 'not registered' in (sub_status.stdout | default('') | lower)
+          or 'unable to read consumer identity' in (package_avail.stdout | default('') | lower)
+
     - name: Fail with repo troubleshooting when package is not available
       ansible.builtin.fail:
         msg: >-
           Package '{{ app_name }}' is not available from enabled repos on
-          {{ inventory_hostname }}. On RHEL, check subscription and repos:
-          subscription-manager status; dnf repolist; dnf list --available
-          {{ app_name }}. See demo/README.md and playbook diagnose_linux_repos.yml.
+          {{ inventory_hostname }}. subscription-manager status (rc={{ sub_status.rc }}):
+          {{ sub_status.stdout | default('n/a') }}
+          dnf repolist (rc={{ dnf_repos.rc }}):
+          {{ dnf_repos.stdout | default('n/a') }}
+          dnf list --available {{ app_name }} (rc={{ package_avail.rc }}):
+          {{ package_avail.stderr | default(package_avail.stdout) }}
       when:
         - ansible_os_family == 'RedHat'
         - package_avail.rc != 0

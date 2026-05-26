@@ -1,0 +1,149 @@
+---
+# Configure a Linux host without installing RPMs (works when dnf/repos are unavailable).
+- name: Configure Linux Application (no package install)
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars:
+    demo_config_dir: /etc/ansible-demo
+    demo_web_paths:
+      - /var/www/html
+      - /usr/share/nginx/html
+
+  tasks:
+    - name: Require survey variables
+      ansible.builtin.assert:
+        that:
+          - demo_action is defined
+          - demo_action | length > 0
+        fail_msg: Set demo_action via the job template survey.
+
+    - name: Require app_name for service and web actions
+      ansible.builtin.assert:
+        that:
+          - app_name is defined
+          - app_name | length > 0
+        fail_msg: >-
+          Action '{{ demo_action }}' needs app_name (service or page title).
+      when: demo_action in ['write_web_page', 'restart_service']
+
+    - name: Write demo config file
+      when: demo_action == 'write_demo_config'
+      block:
+        - name: Ensure demo config directory exists
+          ansible.builtin.file:
+            path: "{{ demo_config_dir }}"
+            state: directory
+            mode: "0755"
+
+        - name: Write deployment marker
+          ansible.builtin.copy:
+            dest: "{{ demo_config_dir }}/deployed.json"
+            mode: "0644"
+            content: |
+              {
+                "host": "{{ inventory_hostname }}",
+                "action": "{{ demo_action }}",
+                "app_name": "{{ app_name | default('none') }}",
+                "managed_by": "ansible-automation-platform",
+                "timestamp": "{{ ansible_date_time.iso8601 }}"
+              }
+
+        - name: Report config path
+          ansible.builtin.debug:
+            msg: "Wrote {{ demo_config_dir }}/deployed.json on {{ inventory_hostname }}"
+
+    - name: Write placeholder web page
+      when: demo_action == 'write_web_page'
+      block:
+        - name: Check common web roots
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          register: web_roots
+          loop: "{{ demo_web_paths }}"
+
+        - name: Pick first existing web root
+          ansible.builtin.set_fact:
+            demo_web_root: >-
+              {{
+                (
+                  web_roots.results
+                  | selectattr('stat.exists')
+                  | map(attribute='item')
+                  | list
+                  | first
+                )
+                | default('/tmp/ansible-demo-www', true)
+              }}
+
+        - name: Ensure web root exists when using fallback
+          ansible.builtin.file:
+            path: "{{ demo_web_root }}"
+            state: directory
+            mode: "0755"
+          when: demo_web_root == '/tmp/ansible-demo-www'
+
+        - name: Write index.html
+          ansible.builtin.copy:
+            dest: "{{ demo_web_root }}/index.html"
+            mode: "0644"
+            content: |
+              <!DOCTYPE html>
+              <html lang="en">
+              <head>
+                <meta charset="utf-8">
+                <title>{{ app_name }} demo</title>
+              </head>
+              <body>
+                <h1>Configured by Ansible</h1>
+                <p>Host: {{ inventory_hostname }}</p>
+                <p>Application: {{ app_name }}</p>
+                <p>Time: {{ ansible_date_time.iso8601 }}</p>
+              </body>
+              </html>
+
+        - name: Report web page path
+          ansible.builtin.debug:
+            msg: "Wrote {{ demo_web_root }}/index.html on {{ inventory_hostname }}"
+
+    - name: Restart service if unit is already present
+      when: demo_action == 'restart_service'
+      block:
+        - name: Check whether systemd unit exists
+          ansible.builtin.command: "systemctl show -p LoadState --value {{ app_name }}"
+          register: svc_load_state
+          changed_when: false
+          failed_when: false
+
+        - name: Restart {{ app_name }} when loaded
+          ansible.builtin.service:
+            name: "{{ app_name }}"
+            state: restarted
+          when: svc_load_state.stdout | trim == 'loaded'
+
+        - name: Skip restart when unit is missing
+          ansible.builtin.debug:
+            msg: >-
+              Service '{{ app_name }}' is not installed on {{ inventory_hostname }}
+              (LoadState={{ svc_load_state.stdout | trim }}). Skipped restart; no
+              packages were installed.
+          when: svc_load_state.stdout | trim != 'loaded'
+
+    - name: Show host summary
+      when: demo_action == 'host_summary'
+      block:
+        - name: Collect quick host facts
+          ansible.builtin.setup:
+            gather_subset:
+              - min
+              - network
+
+        - name: Print host summary
+          ansible.builtin.debug:
+            msg:
+              - "Host: {{ inventory_hostname }}"
+              - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+              - "Kernel: {{ ansible_kernel }}"
+              - "IPv4: {{ ansible_default_ipv4.address | default('n/a') }}"
+              - "FQDN: {{ ansible_fqdn }}"

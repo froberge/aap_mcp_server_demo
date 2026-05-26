@@ -11,6 +11,42 @@
           - ansible_os_family == 'RedHat'
         fail_msg: This playbook only applies to RHEL-family hosts.
 
+    - name: Check subscription-manager status
+      ansible.builtin.command: subscription-manager status
+      register: sub_status
+      changed_when: false
+      failed_when: false
+
+    # region agent log
+    - name: agent debug emit subscription status
+      ansible.builtin.debug:
+        msg: >-
+          AGENT_DEBUG {{ {
+            'sessionId': '2da994',
+            'runId': 'fix_repos',
+            'hypothesisId': 'H1',
+            'location': 'fix_linux_repos.yml:sub_status',
+            'data': {
+              'host': inventory_hostname,
+              'sub_status_rc': sub_status.rc,
+              'sub_status_stdout': sub_status.stdout | default('')
+            }
+          } | to_json }}
+    # endregion
+
+    - name: Fail when host is not registered (dnf makecache will not help)
+      ansible.builtin.fail:
+        msg: >-
+          {{ inventory_hostname }} is not registered with an entitlement server.
+          Run your workshop registration steps first (subscription-manager register
+          or rhc connect), then re-run this playbook or Deploy Linux Application.
+          subscription-manager status:
+          {{ sub_status.stdout | default('n/a') }}
+      when: >-
+        'not registered' in (sub_status.stdout | default('') | lower)
+        or 'unable to read consumer identity' in (sub_status.stdout | default('') | lower)
+        or sub_status.rc != 0
+
     - name: Refresh DNF metadata cache
       ansible.builtin.command: dnf makecache
       register: dnf_makecache
