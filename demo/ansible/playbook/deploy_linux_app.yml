@@ -1,14 +1,54 @@
+---
 - name: Deploy Linux Application
   hosts: all
-  become: yes
+  gather_facts: true
+  become: true
+
   tasks:
+    - name: Require survey variable
+      ansible.builtin.assert:
+        that:
+          - app_name is defined
+          - app_name | length > 0
+        fail_msg: >-
+          Set app_name via the job template survey (for Apache on RHEL 8/9 use
+          httpd).
+
+    - name: Assert Red Hat family when deploying httpd
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'RedHat'
+        fail_msg: >-
+          Package 'httpd' is provided on RHEL as httpd (AppStream). This host
+          reports ansible_os_family={{ ansible_os_family }}. On Debian/Ubuntu
+          use apache2 for app_name.
+      when: app_name == 'httpd'
+
+    - name: Verify package is available in enabled repos
+      ansible.builtin.command: "dnf list --available {{ app_name }}"
+      register: package_avail
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'RedHat'
+
+    - name: Fail with repo troubleshooting when package is not available
+      ansible.builtin.fail:
+        msg: >-
+          Package '{{ app_name }}' is not available from enabled repos on
+          {{ inventory_hostname }}. On RHEL, check subscription and repos:
+          subscription-manager status; dnf repolist; dnf list --available
+          {{ app_name }}. See demo/README.md and playbook diagnose_linux_repos.yml.
+      when:
+        - ansible_os_family == 'RedHat'
+        - package_avail.rc != 0
+
     - name: Ensure the application package is installed
       ansible.builtin.package:
-        name: "{{ app_package_name }}"
+        name: "{{ app_name }}"
         state: present
 
     - name: Start and enable the application service
       ansible.builtin.service:
-        name: "{{ app_service_name }}"
+        name: "{{ app_name }}"
         state: started
-        enabled: yes
+        enabled: true

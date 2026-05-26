@@ -1,0 +1,55 @@
+---
+- name: Diagnose Linux package repositories (RHEL)
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Show Red Hat release
+      ansible.builtin.command: cat /etc/redhat-release
+      register: redhat_release
+      changed_when: false
+      when: ansible_os_family == 'RedHat'
+
+    - name: Display Red Hat release
+      ansible.builtin.debug:
+        var: redhat_release.stdout
+      when: ansible_os_family == 'RedHat'
+
+    - name: Check subscription-manager status
+      ansible.builtin.command: subscription-manager status
+      register: sub_status
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'RedHat'
+
+    - name: Display subscription status
+      ansible.builtin.debug:
+        var: sub_status.stdout_lines
+      when: ansible_os_family == 'RedHat'
+
+    - name: List enabled DNF repositories
+      ansible.builtin.command: dnf repolist
+      register: dnf_repos
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'RedHat'
+
+    - name: Display DNF repolist
+      ansible.builtin.debug:
+        var: dnf_repos.stdout_lines
+      when: ansible_os_family == 'RedHat'
+
+    - name: Check whether httpd is available
+      ansible.builtin.command: dnf list --available httpd
+      register: httpd_avail
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'RedHat'
+
+    - name: Summarize httpd availability
+      ansible.builtin.debug:
+        msg: >-
+          httpd is {{ 'available' if httpd_avail.rc == 0 else 'NOT available' }}
+          in enabled repos on {{ inventory_hostname }}.
+      when: ansible_os_family == 'RedHat'

@@ -1,0 +1,24 @@
+{
+  "name": "",
+  "description": "Survey for Deploy Linux Application (RHEL 8/9)",
+  "spec": [
+    {
+      "type": "multiplechoice",
+      "variable": "app_name",
+      "question_name": "Application",
+      "question_description": "RPM package and systemd service to install on RHEL",
+      "required": true,
+      "choices": [
+        "httpd",
+        "nginx",
+        "mysql-server",
+        "mariadb-server",
+        "ntpdate",
+        "curl",
+        "wget",
+        "git",
+        "firewalld"
+      ]
+    }
+  ]
+}

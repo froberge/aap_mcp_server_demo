@@ -1,0 +1,36 @@
+---
+- name: Refresh RHEL DNF metadata (safe repo fix)
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Require Red Hat family
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'RedHat'
+        fail_msg: This playbook only applies to RHEL-family hosts.
+
+    - name: Refresh DNF metadata cache
+      ansible.builtin.command: dnf makecache
+      register: dnf_makecache
+      changed_when: "'Metadata cache created' in dnf_makecache.stdout"
+
+    - name: Verify httpd is available after cache refresh
+      ansible.builtin.command: dnf list --available httpd
+      register: httpd_avail
+      changed_when: false
+
+    - name: Report success
+      ansible.builtin.debug:
+        msg: >-
+          httpd is available from enabled repos on {{ inventory_hostname }}.
+          Re-run the Deploy Linux Application job template.
+
+    - name: Report when httpd is still missing
+      ansible.builtin.fail:
+        msg: >-
+          httpd is still not available after dnf makecache. Register the host or
+          restore workshop RHUI/repos (subscription-manager status; dnf repolist),
+          then install manually: dnf install -y httpd.
+      when: httpd_avail.rc != 0
