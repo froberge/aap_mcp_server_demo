@@ -1,0 +1,14 @@
+- name: Deploy Linux Application
+  hosts: all
+  become: yes
+  tasks:
+    - name: Ensure the application package is installed
+      ansible.builtin.package:
+        name: "{{ app_package_name }}"
+        state: present
+
+    - name: Start and enable the application service
+      ansible.builtin.service:
+        name: "{{ app_service_name }}"
+        state: started
+        enabled: yes
