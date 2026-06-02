@@ -112,3 +112,4 @@
         name: "{{ app_name }}"
         state: started
         enabled: true
+  
