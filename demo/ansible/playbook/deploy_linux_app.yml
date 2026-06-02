@@ -46,7 +46,7 @@
       when: ansible_os_family == 'RedHat'
 
     # region agent log
-    - name: agent debug emit repo diagnosis
+    - name: Agent debug emit repo diagnosis
       ansible.builtin.debug:
         msg: >-
           AGENT_DEBUG {{ {
