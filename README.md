@@ -20,6 +20,8 @@ The MCP server is deployed by the **AAP operator** when you enable the `mcp` com
 
 Recommended namespace for AAP 2.6 on OpenShift: **`aap`**.
 
+> **Don't have AAP yet?** If you only have the operator installed, see [`setup/README.md`](setup/README.md) to deploy Controller, EDA, and Automation Hub first. That path is optional — the MCP demo below requires an existing AAP instance.
+
 > **Technology Preview:** Not covered by production SLAs. Use for demos and evaluation, not production-critical automation without your own risk acceptance.
 >
 > **Read-write mode (default):** The install playbook sets `allow_write_operations: true`. The AI agent can launch jobs and change AAP when your OAuth token has write scope. Use `-e mcp_allow_write=false` or `manifests/aap-mcp-patch-readonly.yaml` for read-only.
@@ -48,7 +50,7 @@ Ansible runs on **your machine** and calls the **remote** OpenShift API. You do 
 
 ### 1. Configure OpenShift API access
 
-Copy `ansible/inventory/group_vars/all/openshift.yml.example` to `openshift.yml` (do not commit), or pass values at runtime:
+Copy `ansible/inventory/group_vars/all/openshift.yml.example` to `all.yml` (do not commit), or pass values at runtime:
 
 ```yaml
 openshift_api_server: "https://api.<cluster>.<domain>:6443"

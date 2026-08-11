@@ -1,0 +1,14 @@
+---
+- name: Verify AAP instance on OpenShift
+  hosts: localhost
+  gather_facts: false
+  module_defaults:
+    group/kubernetes.core.k8s:
+      host: "{{ openshift_api_server }}"
+      api_key: "{{ openshift_token }}"
+      validate_certs: "{{ openshift_validate_certs | bool }}"
+  tasks:
+    - name: Run AAP instance verify role
+      ansible.builtin.import_role:
+        name: aap_instance
+        tasks_from: verify_instance

@@ -1,0 +1,260 @@
+---
+- name: Validate connection to remote OpenShift cluster
+  ansible.builtin.import_tasks: validate_connection.yml
+
+- name: Require AnsibleAutomationPlatform CR name
+  ansible.builtin.assert:
+    that:
+      - aap_cr_name | default('') | length > 0
+    fail_msg: >-
+      Set aap_cr_name for the new instance, for example:
+        -e aap_cr_name=my-aap
+
+- name: Require file storage class when enabling Hub with file storage
+  ansible.builtin.assert:
+    that:
+      - hub_file_storage_storage_class | default('') | length > 0
+    fail_msg: >-
+      hub_file_storage_storage_class is required when hub is enabled with
+      hub_storage_type=file. List classes with: oc get storageclass
+  when:
+    - not (hub_disabled | bool)
+    - hub_storage_type == 'file'
+
+- name: List existing AnsibleAutomationPlatform custom resources
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_existing_crs
+
+- name: Fail when AnsibleAutomationPlatform CR already exists
+  ansible.builtin.assert:
+    that:
+      - aap_instance_existing_crs.resources | length == 0
+    fail_msg: >-
+      AnsibleAutomationPlatform CR already exists in namespace '{{ aap_namespace }}'.
+      Use verify-aap-instance.yml or delete the existing CR before re-deploying.
+
+- name: Check AAP operator CSV status
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: "{{ aap_namespace }}"
+    label_selectors:
+      - operators.coreos.com/ansible-automation-platform-operator.{{ aap_namespace }}=
+  register: aap_instance_csvs
+  failed_when: false
+
+- name: Show operator CSV phase
+  ansible.builtin.debug:
+    msg: >-
+      Operator CSV:
+      {{
+        (
+          aap_instance_csvs.resources
+          | default([])
+          | map(attribute='metadata.name')
+          | list
+          | first
+        )
+        | default('not found', true)
+      }}
+      phase={{
+        (
+          aap_instance_csvs.resources
+          | default([])
+          | map(attribute='status.phase')
+          | list
+          | first
+        )
+        | default('unknown', true)
+      }}
+
+- name: Render AnsibleAutomationPlatform manifest
+  ansible.builtin.template:
+    src: ansibleautomationplatform.yaml.j2
+    dest: "/tmp/ansibleautomationplatform-{{ aap_cr_name }}.yaml"
+    mode: "0600"
+  register: aap_instance_rendered
+
+- name: Create AnsibleAutomationPlatform CR
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ aap_instance_rendered.dest }}"
+    wait: false
+
+- name: Wait for component deployments to appear
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_deployments
+  until: >-
+    {{
+      (
+        (controller_disabled | bool)
+        or (
+          aap_instance_deployments.resources
+          | selectattr('metadata.name', 'search', 'controller')
+          | list
+          | length > 0
+        )
+      )
+      and (
+        (eda_disabled | bool)
+        or (
+          aap_instance_deployments.resources
+          | selectattr('metadata.name', 'search', 'eda')
+          | list
+          | length > 0
+        )
+      )
+      and (
+        (hub_disabled | bool)
+        or (
+          aap_instance_deployments.resources
+          | selectattr('metadata.name', 'search', 'hub')
+          | list
+          | length > 0
+        )
+      )
+    }}
+  retries: 60
+  delay: 30
+
+- name: Resolve component deployment names
+  ansible.builtin.set_fact:
+    aap_instance_controller_deploy: >-
+      {{
+        (
+          aap_instance_deployments.resources
+          | selectattr('metadata.name', 'search', 'controller')
+          | map(attribute='metadata.name')
+          | list
+          | first
+        )
+        | default('', true)
+      }}
+    aap_instance_eda_deploy: >-
+      {{
+        (
+          aap_instance_deployments.resources
+          | selectattr('metadata.name', 'search', 'eda')
+          | map(attribute='metadata.name')
+          | list
+          | first
+        )
+        | default('', true)
+      }}
+    aap_instance_hub_deploy: >-
+      {{
+        (
+          aap_instance_deployments.resources
+          | selectattr('metadata.name', 'search', 'hub')
+          | map(attribute='metadata.name')
+          | list
+          | first
+        )
+        | default('', true)
+      }}
+
+- name: Wait for Controller deployment to become Available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ aap_instance_controller_deploy }}"
+    namespace: "{{ aap_namespace }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ aap_instance_wait_timeout }}"
+  when:
+    - not (controller_disabled | bool)
+    - aap_instance_controller_deploy | length > 0
+
+- name: Wait for EDA deployment to become Available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ aap_instance_eda_deploy }}"
+    namespace: "{{ aap_namespace }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ aap_instance_wait_timeout }}"
+  when:
+    - not (eda_disabled | bool)
+    - aap_instance_eda_deploy | length > 0
+
+- name: Wait for Automation Hub deployment to become Available
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: "{{ aap_instance_hub_deploy }}"
+    namespace: "{{ aap_namespace }}"
+    wait: true
+    wait_condition:
+      type: Available
+      status: "True"
+    wait_timeout: "{{ aap_instance_wait_timeout }}"
+  when:
+    - not (hub_disabled | bool)
+    - aap_instance_hub_deploy | length > 0
+
+- name: Gather OpenShift routes
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_routes
+
+- name: Collect Platform Gateway route hosts
+  ansible.builtin.set_fact:
+    aap_instance_gateway_hosts: >-
+      {{
+        aap_instance_routes.resources
+        | selectattr('metadata.name', 'search', 'gateway')
+        | map(attribute='spec.host')
+        | list
+      }}
+
+- name: Set Platform Gateway route host from gateway route
+  ansible.builtin.set_fact:
+    aap_instance_gateway_host: "{{ aap_instance_gateway_hosts[0] }}"
+  when: aap_instance_gateway_hosts | length > 0
+
+- name: Fallback Platform Gateway route host from first non-MCP route
+  ansible.builtin.set_fact:
+    aap_instance_gateway_hosts_fallback: >-
+      {{
+        aap_instance_routes.resources
+        | rejectattr('metadata.name', 'search', 'mcp')
+        | map(attribute='spec.host')
+        | list
+      }}
+
+- name: Apply fallback Platform Gateway route host
+  ansible.builtin.set_fact:
+    aap_instance_gateway_host: "{{ aap_instance_gateway_hosts_fallback[0] }}"
+  when:
+    - aap_instance_gateway_host is not defined
+    - aap_instance_gateway_hosts_fallback | length > 0
+
+- name: Default Platform Gateway route host when route is not ready
+  ansible.builtin.set_fact:
+    aap_instance_gateway_host: ""
+  when: aap_instance_gateway_host is not defined
+
+- name: Deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "AnsibleAutomationPlatform/{{ aap_cr_name }} created in namespace {{ aap_namespace }}."
+      - "Controller deployment: {{ aap_instance_controller_deploy | default('disabled or pending') }}"
+      - "EDA deployment: {{ aap_instance_eda_deploy | default('disabled or pending') }}"
+      - "Hub deployment: {{ aap_instance_hub_deploy | default('disabled or pending') }}"
+      - "Platform Gateway: https://{{ aap_instance_gateway_host | default('<gateway-route-host>') }}"
+      - "Next: ansible-playbook playbooks/verify-aap-instance.yml"
+      - "Then run the MCP demo: cd ../../ansible && ansible-playbook playbooks/install-aap-mcp.yml -e aap_cr_name={{ aap_cr_name }}"

@@ -1,0 +1,26 @@
+apiVersion: aap.ansible.com/v1alpha1
+kind: AnsibleAutomationPlatform
+metadata:
+  name: {{ aap_cr_name }}
+  namespace: {{ aap_namespace }}
+spec:
+  image_pull_policy: {{ aap_image_pull_policy }}
+  database:
+    storage_requirements:
+      requests:
+        storage: {{ aap_database_storage_size }}
+  controller:
+    disabled: {{ controller_disabled | bool }}
+  eda:
+    disabled: {{ eda_disabled | bool }}
+  hub:
+    disabled: {{ hub_disabled | bool }}
+{% if not (hub_disabled | bool) and hub_storage_type == 'file' %}
+    storage_type: file
+    file_storage_storage_class: {{ hub_file_storage_storage_class }}
+    file_storage_size: {{ hub_file_storage_size }}
+{% elif not (hub_disabled | bool) %}
+    storage_type: {{ hub_storage_type }}
+{% endif %}
+  lightspeed:
+    disabled: {{ lightspeed_disabled | bool }}

@@ -1,0 +1,132 @@
+---
+- name: Validate connection to remote OpenShift cluster
+  ansible.builtin.import_tasks: validate_connection.yml
+
+- name: List AnsibleAutomationPlatform custom resources
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_crs
+
+- name: Fail when no AnsibleAutomationPlatform CR exists
+  ansible.builtin.assert:
+    that:
+      - aap_instance_crs.resources | length > 0
+    fail_msg: >-
+      No AnsibleAutomationPlatform CR in namespace '{{ aap_namespace }}'.
+      Run deploy-aap-instance.yml first.
+
+- name: Resolve target CR name
+  ansible.builtin.set_fact:
+    aap_instance_resolved_cr_name: >-
+      {{
+        aap_cr_name
+        if (aap_cr_name | default('') | length > 0)
+        else aap_instance_crs.resources[0].metadata.name
+      }}
+
+- name: Read AnsibleAutomationPlatform CR
+  kubernetes.core.k8s_info:
+    api_version: aap.ansible.com/v1alpha1
+    kind: AnsibleAutomationPlatform
+    name: "{{ aap_instance_resolved_cr_name }}"
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_cr
+
+- name: Report component settings from CR
+  ansible.builtin.debug:
+    msg:
+      - "spec.controller.disabled: {{ aap_instance_cr.resources[0].spec.controller.disabled | default('unset') }}"
+      - "spec.eda.disabled: {{ aap_instance_cr.resources[0].spec.eda.disabled | default('unset') }}"
+      - "spec.hub.disabled: {{ aap_instance_cr.resources[0].spec.hub.disabled | default('unset') }}"
+      - "spec.hub.storage_type: {{ aap_instance_cr.resources[0].spec.hub.storage_type | default('unset') }}"
+
+- name: Assert Controller is enabled
+  ansible.builtin.assert:
+    that:
+      - aap_instance_cr.resources[0].spec.controller.disabled | default(true) | bool == false
+    fail_msg: "Controller is disabled on AnsibleAutomationPlatform/{{ aap_instance_resolved_cr_name }}"
+    success_msg: "Controller is enabled on AnsibleAutomationPlatform/{{ aap_instance_resolved_cr_name }}"
+  when: not (controller_disabled | bool)
+
+- name: Assert EDA is enabled
+  ansible.builtin.assert:
+    that:
+      - aap_instance_cr.resources[0].spec.eda.disabled | default(true) | bool == false
+    fail_msg: "EDA is disabled on AnsibleAutomationPlatform/{{ aap_instance_resolved_cr_name }}"
+    success_msg: "EDA is enabled on AnsibleAutomationPlatform/{{ aap_instance_resolved_cr_name }}"
+  when: not (eda_disabled | bool)
+
+- name: Assert Automation Hub is enabled
+  ansible.builtin.assert:
+    that:
+      - aap_instance_cr.resources[0].spec.hub.disabled | default(true) | bool == false
+    fail_msg: "Automation Hub is disabled on AnsibleAutomationPlatform/{{ aap_instance_resolved_cr_name }}"
+    success_msg: "Automation Hub is enabled on AnsibleAutomationPlatform/{{ aap_instance_resolved_cr_name }}"
+  when: not (hub_disabled | bool)
+
+- name: List component deployments
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_deployments
+
+- name: Show Controller deployments
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        aap_instance_deployments.resources
+        | map(attribute='metadata.name')
+        | select('search', 'controller')
+        | list
+      }}
+
+- name: Show EDA deployments
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        aap_instance_deployments.resources
+        | map(attribute='metadata.name')
+        | select('search', 'eda')
+        | list
+      }}
+
+- name: Show Automation Hub deployments
+  ansible.builtin.debug:
+    msg: >-
+      {{
+        aap_instance_deployments.resources
+        | map(attribute='metadata.name')
+        | select('search', 'hub')
+        | list
+      }}
+
+- name: List pods in AAP namespace
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_pods
+
+- name: Show non-Completed pod phases
+  ansible.builtin.debug:
+    msg: "{{ item.metadata.name }}: {{ item.status.phase }}"
+  loop: "{{ aap_instance_pods.resources | rejectattr('status.phase', 'equalto', 'Succeeded') | list }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: List routes
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    namespace: "{{ aap_namespace }}"
+  register: aap_instance_routes
+
+- name: Show Platform Gateway route
+  ansible.builtin.debug:
+    var: item
+  loop: "{{ aap_instance_routes.resources | selectattr('metadata.name', 'search', 'gateway') | list }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"

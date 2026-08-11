@@ -1,0 +1,30 @@
+---
+# Remote OpenShift connection — set in openshift.yml (gitignored) or pass -e at runtime
+openshift_api_server: ""
+openshift_token: ""
+openshift_validate_certs: true
+
+# Namespace where the AAP operator is installed
+aap_namespace: aap
+
+# Name for the new AnsibleAutomationPlatform CR (required for deploy)
+aap_cr_name: ""
+
+# Component toggles
+controller_disabled: false
+eda_disabled: false
+hub_disabled: false
+
+# Automation Hub file storage (required when hub_storage_type is file)
+hub_storage_type: file
+hub_file_storage_storage_class: azurefile-csi
+hub_file_storage_size: 10Gi
+
+# Platform database PVC size
+aap_database_storage_size: 100Gi
+
+# Seconds to wait for Controller, EDA, and Hub deployments
+aap_instance_wait_timeout: 1800
+
+lightspeed_disabled: true
+aap_image_pull_policy: IfNotPresent

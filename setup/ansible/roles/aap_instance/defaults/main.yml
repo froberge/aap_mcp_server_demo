@@ -1,0 +1,21 @@
+---
+openshift_api_server: ""
+openshift_token: ""
+openshift_validate_certs: true
+
+aap_namespace: aap
+aap_cr_name: ""
+
+controller_disabled: false
+eda_disabled: false
+hub_disabled: false
+
+hub_storage_type: file
+hub_file_storage_storage_class: azurefile-csi
+hub_file_storage_size: 10Gi
+
+aap_database_storage_size: 100Gi
+aap_instance_wait_timeout: 1800
+
+lightspeed_disabled: true
+aap_image_pull_policy: IfNotPresent

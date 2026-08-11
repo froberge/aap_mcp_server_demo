@@ -1,0 +1,34 @@
+---
+- name: Require OpenShift API server and token
+  ansible.builtin.assert:
+    that:
+      - openshift_api_server | default('') | length > 0
+      - openshift_token | default('') | length > 0
+    fail_msg: >-
+      Set openshift_api_server and openshift_token in
+      setup/ansible/inventory/group_vars/all/openshift.yml (gitignored) or pass -e at runtime.
+      Example:
+        ansible-playbook playbooks/deploy-aap-instance.yml \
+          -e openshift_api_server=https://api.<cluster>.<domain>:6443 \
+          -e openshift_token=<token>
+
+- name: Show OpenShift connection target
+  ansible.builtin.debug:
+    msg: "Using API server {{ openshift_api_server }}"
+
+- name: Verify OpenShift API is reachable
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    name: "{{ aap_namespace }}"
+  register: aap_instance_ns_check
+  no_log: true
+
+- name: Fail when cluster is unreachable or namespace is missing
+  ansible.builtin.assert:
+    that:
+      - aap_instance_ns_check is succeeded
+      - aap_instance_ns_check.resources | default([]) | length > 0
+    fail_msg: >-
+      Cannot access namespace '{{ aap_namespace }}' on {{ openshift_api_server }}.
+      Check the API URL, token, network path, and that the namespace exists.

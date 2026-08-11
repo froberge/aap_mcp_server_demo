@@ -1,0 +1,28 @@
+# Full AnsibleAutomationPlatform CR for AAP 2.7 with Controller, EDA, and Automation Hub.
+# Apply with:
+#   oc apply -f setup/manifests/aap-instance.yaml
+#
+# Replace metadata.name, metadata.namespace, and file_storage_storage_class before applying.
+#
+apiVersion: aap.ansible.com/v1alpha1
+kind: AnsibleAutomationPlatform
+metadata:
+  name: example
+  namespace: aap
+spec:
+  image_pull_policy: IfNotPresent
+  database:
+    storage_requirements:
+      requests:
+        storage: 100Gi
+  controller:
+    disabled: false
+  eda:
+    disabled: false
+  hub:
+    disabled: false
+    storage_type: file
+    file_storage_storage_class: azurefile-csi
+    file_storage_size: 10Gi
+  lightspeed:
+    disabled: true
