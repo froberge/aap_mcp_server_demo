@@ -55,7 +55,7 @@ Copy `ansible/inventory/group_vars/all/openshift.yml.example` to `all.yml` (do n
 ```yaml
 openshift_api_server: "https://api.<cluster>.<domain>:6443"
 openshift_token: "<openshift-token>"
-openshift_validate_certs: true
+openshift_validate_certs: true  # with some demo environment this need to be false.
 ```
 
 Get a token from the OpenShift web console (**Copy login command**) or use a [service account token](https://docs.redhat.com/en/documentation/openshift_container_platform/4.16/html/authentication_and_authorization/using-service-accounts-as-oauth-client) with access to the `aap` namespace. See also `examples/openshift-connection.env.example`.

@@ -6,3 +6,4 @@ setup/ansible/inventory/group_vars/all.yml
 .cursor/mcp.json
 examples/cursor-mcp.generated.json
 ansible/examples/cursor-mcp.generated.json
+.cursor/
